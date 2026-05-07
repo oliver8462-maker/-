@@ -8,44 +8,70 @@
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
     <style>
-        body { font-family: 'PingFang TC', 'Heiti TC', sans-serif; background-color: #1a1a1a; color: #fff; margin: 0; padding: 20px; text-align: center; }
-        h1 { font-size: 1.5rem; color: #00d4ff; }
-        .controls { background: #333; padding: 15px; border-radius: 10px; margin-bottom: 20px; }
-        .container { display: flex; flex-direction: column; gap: 15px; align-items: center; }
-.video-box { 
-    position: relative; 
-    border: 2px solid #444; 
-    background: #000; 
-    width: 90vw; 
-    max-width: 480px; 
-    overflow: hidden; 
-    border-radius: 8px; 
+    body { 
+        font-family: 'PingFang TC', 'Heiti TC', sans-serif; 
+        background-color: #1a1a1a; 
+        color: #fff; 
+        margin: 0; 
+        padding: 10px; /* 縮小邊距，留給影片空間 */
+        text-align: center; 
+    }
+    h1 { font-size: 1.2rem; color: #00d4ff; margin: 10px 0; }
+    .controls { background: #333; padding: 10px; border-radius: 10px; margin-bottom: 10px; }
     
-    /* 加入這行：預設為 4:3 比例，但上傳直式影片後，高度會根據寬度自動撐開 */
-    aspect-ratio: auto; 
+    /* 核心修改：容器改為橫向排列（如果螢幕寬度夠），在手機上則維持上下 */
+    .container { 
+        display: flex; 
+        flex-direction: row; /* 寬螢幕時左右放 */
+        gap: 10px; 
+        justify-content: center; 
+        flex-wrap: wrap; /* 手機寬度不足時自動換行 */
+    }
+
+    .video-box { 
+        position: relative; 
+        border: 2px solid #444; 
+        background: #000; 
+        /* 針對直式優化：寬度設小，高度設長 */
+        width: 45vw; 
+        max-width: 300px; 
+        aspect-ratio: 9 / 16; /* 強制設定為 9:16 直式比例 */
+        overflow: hidden; 
+        border-radius: 8px; 
+    }
+
+    video, canvas { 
+        position: absolute; 
+        top: 0; 
+        left: 0; 
+        width: 100%; 
+        height: 100%; 
+        object-fit: cover; /* 確保影片填滿直式方框 */
+    }
+
+    /* 手機直向持握時，讓影片變大一點 */
+    @media (max-width: 480px) {
+        .video-box {
+            width: 46vw; /* 兩支影片並排 */
+            height: auto;
+        }
+    }
+
+    #video2, #canvas2 { transform: scaleX(-1); }
     
-    /* 選配：加入一個最小高度，避免還沒上傳影片時看起來太扁 */
-    min-height: 200px; 
-}        video, canvas { 
-    position: absolute; 
-    top: 0; 
-    left: 0; 
-    width: 100%; 
-    height: 100%; 
-    
-    /* 修改為 cover，讓影片貼合我們彈性調整後的外框比例 */
-    object-fit: cover; 
-}
-        #video2, #canvas2 { transform: scaleX(-1); }
-        button { background: #00d4ff; border: none; padding: 12px 24px; font-size: 1rem; border-radius: 5px; cursor: pointer; color: #000; font-weight: bold; width: 100%; margin-top: 10px; }
-        button:disabled { background: #555; cursor: not-allowed; }
-        #flipBtn { background: #555; color: white; margin-top: 10px; }
-        #result { font-size: 2rem; font-weight: bold; margin: 15px 0; min-height: 3rem; }
-        #status { font-size: 0.9rem; color: #aaa; margin-bottom: 10px; }
-        .progress-container { width: 100%; background-color: #444; border-radius: 10px; height: 10px; margin: 10px 0; display: none; }
-        #progressBar { width: 0%; height: 100%; background-color: #00d4ff; border-radius: 10px; transition: width 0.3s; }
-        .label-tag { position: absolute; top: 5px; left: 5px; background: rgba(0,0,0,0.6); padding: 2px 8px; font-size: 0.7rem; border-radius: 4px; z-index: 10; color: #00d4ff; }
-    </style>
+    button { 
+        background: #00d4ff; border: none; padding: 10px; 
+        font-size: 0.9rem; border-radius: 5px; cursor: pointer; 
+        color: #000; font-weight: bold; width: 100%; margin-top: 5px; 
+    }
+    button:disabled { background: #555; cursor: not-allowed; }
+    #flipBtn { background: #555; color: white; }
+    #result { font-size: 2.5rem; font-weight: bold; margin: 10px 0; color: #ff4444; }
+    #status { font-size: 0.8rem; color: #aaa; margin-bottom: 5px; }
+    .progress-container { width: 100%; background-color: #444; border-radius: 10px; height: 8px; margin: 10px 0; display: none; }
+    #progressBar { width: 0%; height: 100%; background-color: #00d4ff; border-radius: 10px; transition: width 0.3s; }
+    .label-tag { position: absolute; top: 5px; left: 5px; background: rgba(0,0,0,0.6); padding: 2px 6px; font-size: 0.6rem; border-radius: 4px; z-index: 10; color: #00d4ff; }
+</style>
 </head>
 <body>
 
