@@ -12,8 +12,30 @@
         h1 { font-size: 1.5rem; color: #00d4ff; }
         .controls { background: #333; padding: 15px; border-radius: 10px; margin-bottom: 20px; }
         .container { display: flex; flex-direction: column; gap: 15px; align-items: center; }
-        .video-box { position: relative; border: 2px solid #444; background: #000; width: 90vw; height: 67.5vw; max-width: 480px; max-height: 360px; overflow: hidden; border-radius: 8px; }
-        video, canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; }
+.video-box { 
+    position: relative; 
+    border: 2px solid #444; 
+    background: #000; 
+    width: 90vw; 
+    max-width: 480px; 
+    overflow: hidden; 
+    border-radius: 8px; 
+    
+    /* 加入這行：預設為 4:3 比例，但上傳直式影片後，高度會根據寬度自動撐開 */
+    aspect-ratio: auto; 
+    
+    /* 選配：加入一個最小高度，避免還沒上傳影片時看起來太扁 */
+    min-height: 200px; 
+}        video, canvas { 
+    position: absolute; 
+    top: 0; 
+    left: 0; 
+    width: 100%; 
+    height: 100%; 
+    
+    /* 修改為 cover，讓影片貼合我們彈性調整後的外框比例 */
+    object-fit: cover; 
+}
         #video2, #canvas2 { transform: scaleX(-1); }
         button { background: #00d4ff; border: none; padding: 12px 24px; font-size: 1rem; border-radius: 5px; cursor: pointer; color: #000; font-weight: bold; width: 100%; margin-top: 10px; }
         button:disabled { background: #555; cursor: not-allowed; }
