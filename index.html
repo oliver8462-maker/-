@@ -3,54 +3,54 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI 舞蹈比對 V3.1 - 兩秒評分版</title>
+    <title>AI 舞蹈比對 V3.2 - 穩定分析版</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
     <style>
-        :root { --primary: #00f2fe; --success: #00ff88; --danger: #ff4e50; --bg: #121212; }
-        body { font-family: sans-serif; background: var(--bg); color: #fff; margin: 0; overflow: hidden; display: flex; flex-direction: column; height: 100vh; }
-        
-        .header { padding: 10px; background: rgba(0,0,0,0.8); z-index: 100; text-align: center; }
-        .btn-group { display: flex; gap: 5px; margin-top: 5px; }
-        button { flex: 1; padding: 12px; border-radius: 8px; border: 1px solid var(--primary); background: none; color: white; font-weight: bold; }
+        :root { --primary: #00f2fe; --success: #00ff88; --bg: #121212; }
+        body { font-family: sans-serif; background: var(--bg); color: #fff; margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        .header { padding: 15px; background: #000; text-align: center; border-bottom: 1px solid #333; }
+        .btn-group { display: flex; gap: 8px; margin-top: 10px; }
+        button { flex: 1; padding: 12px; border-radius: 8px; border: 1px solid var(--primary); background: none; color: white; font-weight: bold; font-size: 0.9rem; }
+        #startBtn:disabled { opacity: 0.3; border-color: #555; }
         #startBtn { background: var(--primary); color: #000; }
-
-        .main-display { flex: 1; display: flex; justify-content: center; align-items: center; gap: 5px; padding: 5px; position: relative; }
-        .video-container { position: relative; width: 48%; aspect-ratio: 9/16; background: #000; border-radius: 8px; overflow: hidden; border: 1px solid #333; }
+        
+        .main-display { flex: 1; display: flex; gap: 5px; padding: 5px; position: relative; }
+        .video-container { position: relative; width: 50%; aspect-ratio: 9/16; background: #000; border-radius: 8px; overflow: hidden; }
         video, canvas { position: absolute; width: 100%; height: 100%; object-fit: cover; }
         #video2, #canvas2 { transform: scaleX(-1); }
 
-        /* 分數 HUD */
-        .score-hud { position: absolute; bottom: 30px; width: 100%; text-align: center; pointer-events: none; }
-        #result { font-size: 4rem; font-weight: 900; color: var(--primary); text-shadow: 0 0 20px rgba(0,0,0,0.8); transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
-        #feedback { font-size: 1.2rem; font-weight: bold; letter-spacing: 2px; }
-
-        /* 狀態列 */
-        #debugInfo { position: absolute; top: 10px; width: 100%; font-size: 0.7rem; color: #aaa; text-align: center; pointer-events: none; }
-
-        #progressBar { position: fixed; bottom: 0; left: 0; height: 6px; background: var(--primary); width: 0%; transition: width 0.1s; }
-        #loading { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 2000; display: none; }
+        .hud { position: absolute; bottom: 20px; width: 100%; text-align: center; pointer-events: none; }
+        #result { font-size: 3.5rem; font-weight: 900; color: var(--primary); text-shadow: 0 0 20px #000; }
+        
+        #loading { 
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: rgba(0,0,0,0.9); display: none; flex-direction: column; 
+            justify-content: center; align-items: center; z-index: 9999; 
+        }
+        .progress-box { width: 80%; height: 10px; background: #333; border-radius: 5px; margin-top: 15px; overflow: hidden; }
+        #progFill { width: 0%; height: 100%; background: var(--primary); transition: width 0.2s; }
     </style>
 </head>
 <body>
 
     <div id="loading">
         <div style="border: 4px solid #f3f3f3; border-top: 4px solid var(--primary); border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite;"></div>
-        <p id="loadingText" style="margin-top: 15px;">分析影片中...</p>
+        <p id="loadingText" style="margin-top: 15px; font-weight: bold;">正在 AI 掃描動作...</p>
+        <div class="progress-box"><div id="progFill"></div></div>
     </div>
 
     <div class="header">
-        <div style="font-size: 0.9rem; font-weight: bold; color: var(--primary);">AI DANCE BATTLE PRO</div>
+        <div style="font-size: 1rem; letter-spacing: 1px;">DANCE AI 比對系統</div>
         <div class="btn-group">
-            <button onclick="document.getElementById('upload1').click()">1. 選取影片</button>
-            <button id="startBtn" disabled>2. 開始跳舞</button>
+            <button onclick="document.getElementById('upload1').click()">1. 讀取影片</button>
+            <button id="startBtn" disabled>2. 開始比對</button>
         </div>
         <input type="file" id="upload1" accept="video/*" style="display: none;">
     </div>
 
     <div class="main-display">
-        <div id="debugInfo">AI 狀態: 等待初始化...</div>
         <div class="video-container">
             <video id="video1" muted playsinline></video>
             <canvas id="canvas1"></canvas>
@@ -61,12 +61,10 @@
         </div>
     </div>
 
-    <div class="score-hud">
-        <div id="result">--- %</div>
-        <div id="feedback">READY?</div>
+    <div class="hud">
+        <div id="result">準備中</div>
+        <div id="feedback" style="font-size: 0.8rem; color: #aaa;">請先上傳影片</div>
     </div>
-
-    <div id="progressBar"></div>
 
     <script>
         const video1 = document.getElementById('video1');
@@ -75,159 +73,135 @@
         const canvas2 = document.getElementById('canvas2');
         const startBtn = document.getElementById('startBtn');
         const resultEl = document.getElementById('result');
-        const feedbackEl = document.getElementById('feedback');
-        const debugInfo = document.getElementById('debugInfo');
+        const progFill = document.getElementById('progFill');
 
         let sequence1 = []; 
-        let currentLivePose = null;
-        let isStandardAnalyzing = false;
-        let scorePool = []; // 存放兩秒內的所有分數
-        let lastUpdateTime = 0;
+        let livePose = null;
+        let isAnalyzing = false;
+        let camera = null;
 
         const pose = new Pose({
             locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
         });
 
-        pose.setOptions({ modelComplexity: 1, smoothLandmarks: true, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
+        // 使用 modelComplexity: 0 (Lite版) 確保手機跑得動
+        pose.setOptions({ modelComplexity: 0, smoothLandmarks: true, minDetectionConfidence: 0.5 });
 
+        // 接收 AI 結果
         pose.onResults((results) => {
-            const activeCanvas = isStandardAnalyzing ? canvas1 : canvas2;
-            drawSkeleton(activeCanvas, results);
-            
-            const normalized = normalizePose(results.poseLandmarks);
-            if (isStandardAnalyzing) {
-                window.tempPose = normalized;
-            } else {
-                currentLivePose = normalized;
-                debugInfo.innerText = normalized ? "AI 狀態: 偵測人體中 ✔" : "AI 狀態: 未偵測到人體 ✘";
+            const cvs = isAnalyzing ? canvas1 : canvas2;
+            const ctx = cvs.getContext('2d');
+            ctx.clearRect(0, 0, cvs.width, cvs.height);
+            if (results.poseLandmarks) {
+                drawConnectors(ctx, results.poseLandmarks, POSE_CONNECTIONS, {color: '#00f2fe', lineWidth: 2});
+                const norm = normalize(results.poseLandmarks);
+                if (isAnalyzing) window.lastExtractedPose = norm;
+                else livePose = norm;
             }
         });
 
-        function drawSkeleton(canvas, results) {
-            const ctx = canvas.getContext('2d');
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            if (results.poseLandmarks) {
-                drawConnectors(ctx, results.poseLandmarks, POSE_CONNECTIONS, {color: '#00f2fe', lineWidth: 2});
-                drawLandmarks(ctx, results.poseLandmarks, {color: '#fff', lineWidth: 1, radius: 1});
-            }
-        }
-
-        // 核心：更穩定的歸一化算法
-        function normalizePose(landmarks) {
+        function normalize(landmarks) {
             if (!landmarks) return null;
-            // 使用肩膀中點 (11, 12) 做原點
-            const centerX = (landmarks[11].x + landmarks[12].x) / 2;
-            const centerY = (landmarks[11].y + landmarks[12].y) / 2;
-            
-            // 使用軀幹高度做為縮放基準，避免距離遠近影響
-            const hipY = (landmarks[23].y + landmarks[24].y) / 2;
-            const scale = Math.abs(hipY - centerY) || 0.1; // 防止除以 0
-
-            let points = [];
-            // 抓取軀幹與四肢關鍵點 (11-16, 23-28)
-            const joints = [11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28];
-            for (let i of joints) {
-                points.push((landmarks[i].x - centerX) / scale);
-                points.push((landmarks[i].y - centerY) / scale);
-            }
-            return points;
+            const cx = (landmarks[11].x + landmarks[12].x) / 2;
+            const cy = (landmarks[11].y + landmarks[12].y) / 2;
+            const scale = Math.abs(landmarks[23].y - cy) || 0.1;
+            let res = [];
+            [11,12,13,14,15,16,23,24,25,26,27,28].forEach(i => {
+                res.push((landmarks[i].x - cx) / scale, (landmarks[i].y - cy) / scale);
+            });
+            return res;
         }
 
-        // 核心：更寬鬆的比對算法
-        function getSimilarity(v1, v2) {
-            if (!v1 || !v2) return 0;
-            let sumDist = 0;
-            for (let i = 0; i < v1.length; i++) {
-                sumDist += Math.abs(v1[i] - v2[i]);
-            }
-            // 將距離轉為分數，這裏做了調整讓分數更好看
-            let avgDist = sumDist / (v1.length / 2);
-            let score = 100 - (avgDist * 25); // 調整係數，25 讓門檻變寬
-            return Math.max(0, Math.min(100, score));
-        }
-
-        // 影片預處理
+        // 核心：穩定的影片分析函式
         document.getElementById('upload1').addEventListener('change', async (e) => {
             const file = e.target.files[0];
             if (!file) return;
+
+            // 1. 顯示載入中並停止相機
             document.getElementById('loading').style.display = 'flex';
-            video1.src = URL.createObjectURL(file);
+            if (camera) await camera.stop(); 
             
-            video1.onloadedmetadata = async () => {
-                isStandardAnalyzing = true;
+            video1.src = URL.createObjectURL(file);
+            video1.load();
+
+            video1.onloadeddata = async () => {
+                isAnalyzing = true;
                 sequence1 = [];
-                const fps = 10;
-                const totalFrames = Math.floor(video1.duration * fps);
+                const fps = 5; // 每秒只分析 5 幀，減輕負擔
+                const duration = video1.duration;
+                const totalFrames = Math.floor(duration * fps);
 
                 for (let i = 0; i < totalFrames; i++) {
-                    video1.currentTime = i / fps;
-                    await new Promise(r => video1.onseeked = r);
+                    const targetTime = i / fps;
+                    video1.currentTime = targetTime;
+                    
+                    // 等待影格讀取完成
+                    await new Promise(res => {
+                        const timeout = setTimeout(res, 500); // 最多等 0.5 秒
+                        video1.onseeked = () => { clearTimeout(timeout); res(); };
+                    });
+
+                    window.lastExtractedPose = null;
                     await pose.send({image: video1});
-                    sequence1.push(window.tempPose || null);
-                    document.getElementById('progressBar').style.width = `${(i/totalFrames)*100}%`;
+                    sequence1.push(window.lastExtractedPose);
+                    
+                    // 更新進度條
+                    progFill.style.width = `${((i+1)/totalFrames)*100}%`;
                 }
-                
-                isStandardAnalyzing = false;
+
+                isAnalyzing = false;
                 document.getElementById('loading').style.display = 'none';
                 startBtn.disabled = false;
-                alert("影片分析完成！點擊開始跳舞");
+                resultEl.innerText = "0%";
+                document.getElementById('feedback').innerText = "分析完成，請站好並點擊開始";
+                
+                // 2. 分析完畢，重新啟動相機
+                initCamera();
             };
         });
 
+        function initCamera() {
+            camera = new Camera(video2, {
+                onFrame: async () => { if(!isAnalyzing) await pose.send({image: video2}); },
+                width: 480, height: 640
+            });
+            camera.start();
+        }
+
         startBtn.addEventListener('click', () => {
             video1.play();
-            lastUpdateTime = Date.now();
-            scorePool = [];
-            gameLoop();
-        });
+            let scorePool = [];
+            let lastUpdate = Date.now();
 
-        function gameLoop() {
-            if (video1.paused || video1.ended) return;
+            function loop() {
+                if (video1.paused || video1.ended) return;
 
-            const frameIdx = Math.floor(video1.currentTime * 10);
-            const standard = sequence1[frameIdx];
-            
-            if (standard && currentLivePose) {
-                const instantScore = getSimilarity(standard, currentLivePose);
-                scorePool.push(instantScore);
-            }
-
-            // 每 2000 毫秒（2秒）更新一次畫面上的分數
-            const now = Date.now();
-            if (now - lastUpdateTime > 2000) {
-                if (scorePool.length > 0) {
-                    const avgScore = scorePool.reduce((a, b) => a + b) / scorePool.length;
-                    const finalScore = Math.round(avgScore);
-                    
-                    // 更新 UI
-                    resultEl.innerText = `${finalScore}%`;
-                    updateFeedback(finalScore);
-                    
-                    // 數字跳動效果
-                    resultEl.style.transform = "scale(1.3)";
-                    setTimeout(() => resultEl.style.transform = "scale(1)", 200);
-
-                    scorePool = []; // 清空池子重新計算
+                const idx = Math.floor(video1.currentTime * 5);
+                const std = sequence1[idx];
+                
+                if (std && livePose) {
+                    let diff = 0;
+                    for(let i=0; i<std.length; i++) diff += Math.abs(std[i] - livePose[i]);
+                    let s = Math.max(0, 100 - (diff * 20)); // 放寬評分
+                    scorePool.push(s);
                 }
-                lastUpdateTime = now;
+
+                if (Date.now() - lastUpdate > 2000) {
+                    if (scorePool.length > 0) {
+                        const avg = scorePool.reduce((a,b)=>a+b)/scorePool.length;
+                        resultEl.innerText = `${Math.round(avg)}%`;
+                        resultEl.style.transform = "scale(1.2)";
+                        setTimeout(()=>resultEl.style.transform="scale(1)", 200);
+                        scorePool = [];
+                    }
+                    lastUpdate = Date.now();
+                }
+                requestAnimationFrame(loop);
             }
-
-            document.getElementById('progressBar').style.width = `${(video1.currentTime / video1.duration) * 100}%`;
-            requestAnimationFrame(gameLoop);
-        }
-
-        function updateFeedback(s) {
-            if (s > 80) { feedbackEl.innerText = "PERFECT!"; feedbackEl.style.color = "#00ff88"; }
-            else if (s > 50) { feedbackEl.innerText = "GOOD"; feedbackEl.style.color = "#00f2fe"; }
-            else { feedbackEl.innerText = "TRY AGAIN"; feedbackEl.style.color = "#ff4e50"; }
-        }
-
-        const camera = new Camera(video2, {
-            onFrame: async () => { if (!isStandardAnalyzing) await pose.send({image: video2}); },
-            width: 480, height: 640
+            loop();
         });
-        camera.start();
 
+        pose.initialize().then(() => initCamera());
     </script>
     <style>@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>
 </body>
