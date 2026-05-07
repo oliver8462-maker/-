@@ -147,28 +147,44 @@
         });
 
         async function analyzeStandardVideo() {
-            isAnalyzingStandard = true;
-            sequence1 = [];
-            video1.pause();
-            video1.currentTime = 0;
-            
-            const fps = 15; // 預分析用低幀率
-            const duration = video1.duration;
-            const totalFrames = Math.floor(duration * fps);
-            
-            for (let i = 0; i < totalFrames; i++) {
-                video1.currentTime = i / fps;
-                await new Promise(r => video1.onseeked = r);
-                await pose.send({image: video1});
-                sequence1.push(currentFramePose || []);
-                progressBar.style.width = `${((i/totalFrames)*100).toFixed(0)}%`;
-            }
-            
-            isAnalyzingStandard = false;
-            statusText.innerText = "分析完成！點擊開始舞蹈";
-            startBtn.disabled = false;
-            startBtn.innerText = "開始連動比對";
+    isAnalyzingStandard = true;
+    sequence1 = [];
+    video1.pause();
+    
+    // 降低 FPS 到 8，對 6 秒影片來說足夠精準了
+    const fps = 8; 
+    const duration = video1.duration;
+    const totalFrames = Math.floor(duration * fps);
+    
+    for (let i = 0; i < totalFrames; i++) {
+        video1.currentTime = i / fps;
+        
+        // 加入超時保護，避免某幀卡死
+        await new Promise(r => {
+            const timer = setTimeout(r, 1000); // 最多等 1 秒
+            video1.onseeked = () => {
+                clearTimeout(timer);
+                r();
+            };
+        });
+
+        try {
+            await pose.send({image: video1});
+            // 如果這幀沒抓到，就補一個空陣列，不要讓程式當掉
+            sequence1.push(currentFramePose || []); 
+        } catch (e) {
+            console.log("跳過錯誤幀");
+            sequence1.push([]);
         }
+        
+        progressBar.style.width = `${((i/totalFrames)*100).toFixed(0)}%`;
+    }
+    
+    isAnalyzingStandard = false;
+    statusText.innerText = "分析完成！可以開始跳舞了";
+    startBtn.disabled = false;
+    startBtn.innerText = "開始連動比對";
+}
 
         // 4. 即時比對迴圈
         function euclideanDistance(a, b) {
