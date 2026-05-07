@@ -1,0 +1,220 @@
+
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>舞蹈比對系統 - 直播手機版 v2</title>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+    <style>
+        body { font-family: 'PingFang TC', 'Heiti TC', sans-serif; background-color: #1a1a1a; color: #fff; margin: 0; padding: 20px; text-align: center; }
+        h1 { font-size: 1.5rem; color: #00d4ff; }
+        .controls { background: #333; padding: 15px; border-radius: 10px; margin-bottom: 20px; }
+        .container { display: flex; flex-direction: column; gap: 15px; align-items: center; }
+        .video-box { position: relative; border: 2px solid #444; background: #000; width: 90vw; height: 67.5vw; max-width: 480px; max-height: 360px; overflow: hidden; border-radius: 8px; }
+        video, canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; }
+        #video2, #canvas2 { transform: scaleX(-1); } /* 鏡像 */
+        button { background: #00d4ff; border: none; padding: 12px 24px; font-size: 1rem; border-radius: 5px; cursor: pointer; color: #000; font-weight: bold; width: 100%; margin-top: 10px; }
+        button:disabled { background: #555; cursor: not-allowed; }
+        #result { font-size: 2rem; font-weight: bold; margin: 15px 0; min-height: 3rem; }
+        #status { font-size: 0.9rem; color: #aaa; margin-bottom: 10px; }
+        .progress-container { width: 100%; background-color: #444; border-radius: 10px; height: 10px; margin: 10px 0; display: none; }
+        #progressBar { width: 0%; height: 100%; background-color: #00d4ff; border-radius: 10px; transition: width 0.3s; }
+        .label-tag { position: absolute; top: 5px; left: 5px; background: rgba(0,0,0,0.6); padding: 2px 8px; font-size: 0.7rem; border-radius: 4px; z-index: 10; color: #00d4ff; }
+    </style>
+</head>
+<body>
+
+    <h1>AI 舞蹈即時比對系統 (手機優化版)</h1>
+
+    <div class="controls">
+        <div id="status">步驟 1：請先選擇標準影片</div>
+        <input type="file" id="upload1" accept="video/*" style="display: none;">
+        <button onclick="document.getElementById('upload1').click()">選取標準影片</button>
+        
+        <div class="progress-container" id="progContainer">
+            <div id="progressBar"></div>
+        </div>
+        
+        <button id="startBtn" disabled>等待模型載入...</button>
+    </div>
+
+    <div id="result">等待開始...</div>
+
+    <div class="container">
+        <!-- 標準影片區 -->
+        <div class="video-box">
+            <span class="label-tag">標準影片</span>
+            <video id="video1" muted playsinline></video>
+            <canvas id="canvas1"></canvas>
+        </div>
+        <!-- 手機鏡頭區 -->
+        <div class="video-box">
+            <span class="label-tag">你的鏡頭 (鏡像)</span>
+            <video id="video2" muted playsinline></video>
+            <canvas id="canvas2"></canvas>
+        </div>
+    </div>
+
+    <script>
+        const video1 = document.getElementById('video1');
+        const video2 = document.getElementById('video2');
+        const canvas1 = document.getElementById('canvas1');
+        const canvas2 = document.getElementById('canvas2');
+        const startBtn = document.getElementById('startBtn');
+        const statusText = document.getElementById('status');
+        const progressBar = document.getElementById('progressBar');
+        const progContainer = document.getElementById('progContainer');
+        const resultEl = document.getElementById('result');
+
+        let sequence1 = []; 
+        let latestLivePose = null;
+        let scoreHistory = [];
+        let isModelReady = false;
+        let isAnalyzingStandard = false;
+        let currentFramePose = null;
+
+        // 1. 初始化 MediaPipe (Lite版效能較好)
+        const pose = new Pose({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
+        });
+        pose.setOptions({
+            modelComplexity: 0, 
+            smoothLandmarks: true,
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5
+        });
+
+        pose.onResults((results) => {
+            const canvas = (isAnalyzingStandard) ? canvas1 : canvas2;
+            const ctx = canvas.getContext('2d');
+            
+            ctx.save();
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            if (results.poseLandmarks) {
+                drawConnectors(ctx, results.poseLandmarks, POSE_CONNECTIONS, {color: '#00d4ff', lineWidth: 4});
+                drawLandmarks(ctx, results.poseLandmarks, {color: '#ff0055', lineWidth: 2});
+                
+                // 根據模式決定存入哪裡
+                const normalized = normalizeLandmarks(results.poseLandmarks, !isAnalyzingStandard);
+                if (isAnalyzingStandard) {
+                    currentFramePose = normalized;
+                } else {
+                    latestLivePose = normalized;
+                }
+            }
+            ctx.restore();
+        });
+
+        function normalizeLandmarks(landmarks, isMirror) {
+            if (!landmarks) return null;
+            const centerX = (landmarks[23].x + landmarks[24].x) / 2;
+            const centerY = (landmarks[23].y + landmarks[24].y) / 2;
+            let arr = [];
+            for (let i = 11; i <= 32; i++) {
+                let x = landmarks[i].x - centerX;
+                let y = landmarks[i].y - centerY;
+                if (isMirror) x = -x;
+                arr.push(x, y);
+            }
+            return arr;
+        }
+
+        // 2. 啟動鏡頭
+        const camera = new Camera(video2, {
+            onFrame: async () => {
+                if (!isAnalyzingStandard) {
+                    await pose.send({image: video2});
+                }
+            },
+            width: 640,
+            height: 480
+        });
+
+        // 3. 影片上傳與預分析
+        document.getElementById('upload1').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            video1.src = URL.createObjectURL(file);
+            video1.onloadedmetadata = () => {
+                statusText.innerText = "正在分析影片骨架，請稍候...";
+                progContainer.style.display = 'block';
+                analyzeStandardVideo();
+            };
+        });
+
+        async function analyzeStandardVideo() {
+            isAnalyzingStandard = true;
+            sequence1 = [];
+            video1.pause();
+            video1.currentTime = 0;
+            
+            const fps = 15; // 預分析用低幀率
+            const duration = video1.duration;
+            const totalFrames = Math.floor(duration * fps);
+            
+            for (let i = 0; i < totalFrames; i++) {
+                video1.currentTime = i / fps;
+                await new Promise(r => video1.onseeked = r);
+                await pose.send({image: video1});
+                sequence1.push(currentFramePose || []);
+                progressBar.style.width = `${((i/totalFrames)*100).toFixed(0)}%`;
+            }
+            
+            isAnalyzingStandard = false;
+            statusText.innerText = "分析完成！點擊開始舞蹈";
+            startBtn.disabled = false;
+            startBtn.innerText = "開始連動比對";
+        }
+
+        // 4. 即時比對迴圈
+        function euclideanDistance(a, b) {
+            if (!a || !b || a.length !== b.length) return 999;
+            let sum = 0;
+            for (let i = 0; i < a.length; i++) sum += Math.pow(a[i] - b[i], 2);
+            return Math.sqrt(sum);
+        }
+
+        function gameLoop() {
+            if (video1.paused || video1.ended) return;
+
+            const fps = 15;
+            const frameIdx = Math.floor(video1.currentTime * fps);
+            const standardPose = sequence1[frameIdx];
+
+            if (standardPose && latestLivePose) {
+                const dist = euclideanDistance(standardPose, latestLivePose);
+                const threshold = 1.2;
+                let score = Math.max(0, 100 - (dist / threshold * 100));
+                
+                scoreHistory.push(score);
+                if (scoreHistory.length > 5) scoreHistory.shift();
+                const avg = scoreHistory.reduce((a,b)=>a+b)/scoreHistory.length;
+
+                resultEl.innerText = `${avg.toFixed(0)} %`;
+                if (avg > 80) resultEl.style.color = "#00ff88";
+                else if (avg > 50) resultEl.style.color = "#ffdd00";
+                else resultEl.style.color = "#ff4444";
+            }
+            requestAnimationFrame(gameLoop);
+        }
+
+        startBtn.addEventListener('click', () => {
+            video1.play();
+            camera.start();
+            gameLoop();
+            startBtn.disabled = true;
+            statusText.innerText = "舞動中！加油！";
+        });
+
+        // 初始化模型
+        pose.initialize().then(() => {
+            isModelReady = true;
+            startBtn.innerText = "請先上傳影片";
+        });
+    </script>
+</body>
+</html>
