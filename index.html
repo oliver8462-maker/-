@@ -147,8 +147,9 @@
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
             if (results.poseLandmarks) {
-                drawConnectors(ctx, results.poseLandmarks, POSE_CONNECTIONS, {color: '#00d4ff', lineWidth: 4});
-                drawLandmarks(ctx, results.poseLandmarks, {color: '#ff0055', lineWidth: 2});
+                // lineWidth 改為 2，並加入 radius: 1 縮小圓點
+                drawConnectors(ctx, results.poseLandmarks, POSE_CONNECTIONS, {color: '#00d4ff', lineWidth: 2});
+                drawLandmarks(ctx, results.poseLandmarks, {color: '#ff0055', lineWidth: 1, radius: 1});
                 
                 const normalized = normalizeLandmarks(results.poseLandmarks, isMirror);
                 if (isAnalyzingStandard) {
@@ -249,7 +250,21 @@
             const standardPose = sequence1[frameIdx];
             if (standardPose && latestLivePose) {
                 const dist = euclideanDistance(standardPose, latestLivePose);
-                let score = Math.max(0, 100 - (dist / 1.2 * 100));
+
+// 調高門檻值 (從 1.2 改為 2.5 或更高)，讓判定變得「寬鬆」一點，分數才會有變化
+const threshold = 2.5; 
+
+// 使用更平滑的分數轉換公式
+let score = 0;
+if (dist < threshold) {
+    // 距離越小分數越高，即便距離稍大也會有保底分數
+    score = 100 * (1 - (dist / threshold));
+} else {
+    score = Math.max(0, 10 - (dist / 10)); // 給一點點保底安慰分，避免直接跳 0
+}
+
+scoreHistory.push(score);
+// ...其餘保持不變
                 scoreHistory.push(score);
                 if (scoreHistory.length > 5) scoreHistory.shift();
                 const avg = scoreHistory.reduce((a,b)=>a+b)/scoreHistory.length;
