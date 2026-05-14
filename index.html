@@ -8,72 +8,110 @@
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #000; overflow: hidden; font-family: Arial, sans-serif; color: white;}
-       
-        /* 頂部半透明控制面板 */
-        .ui-panel { position: absolute; top: 0; left: 0; width: 100%; background: rgba(0, 0, 0, 0.6); padding: 15px 10px; text-align: center; box-sizing: border-box; z-index: 100; transition: all 0.3s ease;}
-        h1 { margin: 0 0 10px 0; font-size: 22px; }
-       
-        .controls { margin-bottom: 10px; }
-        button { padding: 10px 20px; font-size: 16px; cursor: pointer; margin: 5px; border-radius: 8px; border: none; background-color: #007BFF; color: white; font-weight: bold;}
-        button:disabled { background-color: #555; cursor: not-allowed; }
-       
-        #status { font-size: 16px; color: #ddd; margin-bottom: 5px; }
-        #result { font-size: 36px; font-weight: bold; color: #ffeb3b; margin-top: 5px; text-shadow: 2px 2px 4px #000;}
+    :root {
+        --primary: #00d4ff;
+        --secondary: #ff0055;
+        --bg-dark: #121212;
+        --card-bg: rgba(255, 255, 255, 0.05);
+    }
 
+    body { 
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        background-color: var(--bg-dark); 
+        color: #fff; margin: 0; padding: 0;
+        display: flex; flex-direction: column; height: 100vh; overflow: hidden;
+    }
 
-        /* 全螢幕影片容器 */
-        .video-container { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; }
-        .video-box { width: 100%; height: 100%; position: absolute; top: 0; left: 0; display: none; }
-        #box1 { display: block; } /* 預設顯示參考影片 */
-       
-        /* object-fit: contain 保證影片比例完整顯示 */
-        video, canvas { width: 100%; height: 100%; object-fit: contain; position: absolute; top: 0; left: 0; }
-       
-        /* 倒數計時器 */
-        #countdown { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 150px; color: red; font-weight: bold; text-shadow: 0 0 20px #000; display: none; z-index: 50;}
+    /* 頂部導航欄 */
+    header {
+        padding: 15px; background: rgba(0,0,0,0.5);
+        backdrop-filter: blur(10px); border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+    h1 { font-size: 1.1rem; margin: 0; color: var(--primary); letter-spacing: 1px; }
 
+    /* 控制面板區 */
+    .controls-panel {
+        padding: 15px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+    }
 
-        /* 左下角 Log 按鈕 */
-        .log-btn { position: absolute; bottom: 10px; left: 10px; z-index: 100; background-color: rgba(255, 255, 255, 0.2); border: none; color: white; padding: 8px 12px; border-radius: 5px; font-size: 12px; cursor: pointer;}
-    </style>
+    /* 分數顯示區 - 浮動儀表板 */
+    .score-badge {
+        font-size: 3rem; font-weight: 800; color: var(--primary);
+        text-shadow: 0 0 20px rgba(0,212,255,0.5); margin: 10px 0;
+    }
+
+    /* 影片容器 - 並排設計 */
+    .video-grid {
+        flex: 1; display: flex; gap: 4px; padding: 4px; background: #000;
+    }
+
+    .video-wrapper {
+        position: relative; flex: 1; border-radius: 12px; overflow: hidden;
+        border: 1px solid rgba(255,255,255,0.15);
+    }
+
+    video, canvas { width: 100%; height: 100%; object-fit: cover; }
+
+    /* 按鈕樣式優化 */
+    .btn {
+        border: none; border-radius: 8px; padding: 12px; font-weight: bold;
+        transition: all 0.2s; font-size: 0.85rem; display: flex; align-items: center; justify-content: center;
+    }
+    .btn-primary { background: var(--primary); color: #000; }
+    .btn-secondary { background: rgba(255,255,255,0.1); color: #fff; border: 1px solid rgba(255,255,255,0.2); }
+    .btn:active { transform: scale(0.95); opacity: 0.8; }
+    .btn:disabled { opacity: 0.3; }
+
+    /* 狀態提示小點 */
+    .status-dot {
+        display: inline-block; width: 8px; height: 8px; background: #4CAF50;
+        border-radius: 50%; margin-right: 5px; animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
+
+    /* 進度條優化 */
+    .progress-bar-container {
+        position: fixed; top: 0; left: 0; width: 100%; height: 4px; z-index: 100; display: none;
+    }
+    #progressBar { height: 100%; background: linear-gradient(90deg, var(--primary), var(--secondary)); width: 0%; transition: width 0.3s; }
+</style>
 </head>
 <body>
 
 
     <!-- 浮動控制面板 -->
-    <div class="ui-panel" id="uiPanel">
-        <h1 id="mainTitle">舞蹈骨架比對系統</h1>
-        <div class="controls" id="controlsDiv">
-            <label>上傳教學影片: <input type="file" id="upload1" accept="video/*"></label><br>
-            <button id="startBtn" disabled>正在載入 AI 模型...</button>
-        </div>
-        <div id="status">請先上傳參考影片。</div>
-        <div id="result"></div>
+    <div class="progress-bar-container" id="progContainer">
+        <div id="progressBar"></div>
     </div>
 
+    <header>
+        <h1>DANCE AI <small style="font-size: 0.6rem; color: #888;">BETA</small></h1>
+    </header>
 
-    <!-- 全螢幕影片區 -->
-    <div class="video-container">
-        <!-- 參考影片 (滿版) -->
-        <!-- 注意：移除了 muted，這樣錄影畫面隱藏時，仍能聽音樂跟著跳 -->
-        <div id="box1" class="video-box">
-            <video id="video1" playsinline></video>
+    <div class="controls-panel">
+        <button class="btn btn-secondary" onclick="document.getElementById('upload1').click()">📁 載入教學</button>
+        <button class="btn btn-secondary" id="flipBtn">🔄 切換鏡頭</button>
+        <input type="file" id="upload1" accept="video/*" style="display: none;">
+        
+        <button class="btn btn-primary" id="startBtn" disabled style="grid-column: span 2;">⚡ 開始比對</button>
+    </div>
+
+    <div id="status" style="font-size: 0.75rem; color: #aaa;">請先選取範例影片</div>
+    
+    <div class="score-badge" id="result">0%</div>
+
+    <div class="video-grid">
+        <div class="video-wrapper">
+            <span class="label-tag">MASTER</span>
+            <video id="video1" muted playsinline></video>
             <canvas id="canvas1"></canvas>
         </div>
-       
-        <!-- 手機鏡頭 (滿版) -->
-        <div id="box2" class="video-box">
-            <video id="video2" muted playsinline autoplay></video>
+        <div class="video-wrapper">
+            <span class="label-tag" id="cameraStatus">LIVE: 前鏡頭</span>
+            <video id="video2" muted playsinline></video>
             <canvas id="canvas2"></canvas>
-            <div id="countdown">5</div>
         </div>
     </div>
-
-
-    <button class="log-btn" onclick="downloadLog()">下載 Log</button>
-
-
     <script>
         // ==========================================
         // 1. Log 系統設定
